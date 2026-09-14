@@ -3,6 +3,11 @@ import { t } from './i18n.js';
 
 type ChatError = Extract<SessionEvent, { kind: 'chat_error' }>;
 
+// Canonical message snapshots get fresh storage seq values. Their origin preserves the
+// position they occupied in the conversation, which is the order error reconciliation needs.
+const conversationSeq = (event: SessionEvent) =>
+  'origin' in event && typeof event.origin === 'number' ? event.origin : event.seq;
+
 /** Presentation only: never infer send/reload authority from error prose. */
 export function chatErrorPresentation(error: ChatError, history: readonly SessionEvent[] = []) {
   const text = error.message.text.trim();
@@ -25,9 +30,10 @@ export function chatErrorPresentation(error: ChatError, history: readonly Sessio
   let repair: Extract<SessionEvent, { kind: 'progress' }> | undefined;
   let continued = false;
   let completed = false;
-  const later = [...history].sort((a, b) => a.seq - b.seq);
+  const errorSeq = conversationSeq(error);
+  const later = [...history].sort((a, b) => conversationSeq(a) - conversationSeq(b));
   for (const event of later) {
-    if (event.seq <= error.seq) continue;
+    if (conversationSeq(event) <= errorSeq) continue;
     if (event.kind === 'user_message' || event.kind === 'chat_error' ||
         (event.kind === 'turn_start' && event.turnId !== error.turnId)) break;
     if (error.turnId && event.turnId === error.turnId && event.kind === 'turn_end' && event.outcome === 'completed') {
@@ -48,10 +54,10 @@ export function chatErrorPresentation(error: ChatError, history: readonly Sessio
   // enough to rewrite history.
   if (!completed) {
     for (const event of later) {
-      if (event.seq <= error.seq) continue;
+      if (conversationSeq(event) <= errorSeq) continue;
       if (event.kind === 'user_message') break;
       if (event.kind === 'assistant_message' && event.final === true && event.goalEligible === true &&
-          (event.finalContentSeq ?? event.origin ?? event.seq) > error.seq) {
+          (event.finalContentSeq ?? conversationSeq(event)) > errorSeq) {
         completed = true;
         break;
       }

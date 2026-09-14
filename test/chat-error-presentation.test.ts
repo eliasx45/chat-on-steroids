@@ -97,3 +97,26 @@ it('resolves a repeated reload error when the recorder later proves the stable f
   };
   expect(chatErrorPresentation(remounted, [...history, nextQuestion]).resolved).toBe(false);
 });
+
+it('uses conversation origin when canonical snapshots have newer storage sequences', () => {
+  const failed = error('Connection interrupted. Waiting for the complete answer', {
+    seq: 31, time: 130, turnId: undefined, recoverable: true
+  });
+  const earlierQuestion: SessionEvent = {
+    seq: 141, origin: 23, time: 120, source: 'extension', kind: 'user_message', messageId: 'earlier-question',
+    message: { text: 'Earlier', chars: 7, truncated: false }
+  };
+  const final: SessionEvent = {
+    seq: 150, origin: 40, finalContentSeq: 40, time: 150, source: 'extension', kind: 'assistant_message',
+    messageId: 'stable-final', providerMessageId: 'provider-final',
+    message: { text: 'Completed.', chars: 10, truncated: false }, state: 'final', final: true, goalEligible: true
+  };
+  const nextQuestion: SessionEvent = {
+    seq: 142, origin: 42, time: 160, source: 'extension', kind: 'user_message', messageId: 'next-question',
+    message: { text: 'Next', chars: 4, truncated: false }
+  };
+
+  expect(chatErrorPresentation(failed, [failed, earlierQuestion, final, nextQuestion])).toMatchObject({
+    title: 'Recovered after interruption', resolved: true
+  });
+});
