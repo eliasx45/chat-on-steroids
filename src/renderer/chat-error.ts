@@ -25,7 +25,8 @@ export function chatErrorPresentation(error: ChatError, history: readonly Sessio
   let repair: Extract<SessionEvent, { kind: 'progress' }> | undefined;
   let continued = false;
   let completed = false;
-  for (const event of [...history].sort((a, b) => a.seq - b.seq)) {
+  const later = [...history].sort((a, b) => a.seq - b.seq);
+  for (const event of later) {
     if (event.seq <= error.seq) continue;
     if (event.kind === 'user_message' || event.kind === 'chat_error' ||
         (event.kind === 'turn_start' && event.turnId !== error.turnId)) break;
@@ -40,10 +41,28 @@ export function chatErrorPresentation(error: ChatError, history: readonly Sessio
     if (event.source === 'app' && event.kind === 'progress' && event.progressId?.startsWith('browser-repair:') &&
         (!event.turnId || (!!error.turnId && event.turnId === error.turnId))) repair = event;
   }
-  if (completed) return { title, message, next: t('This turn later completed. You can continue with a new message.') };
-  if (continued) return { title, message, next: t('Work continued after this notice. Automatic continuation waits for work to settle; the failed page alone does not trigger another message.') };
+  // Reload can replace the document-local turn id and repeat the same provider banner before
+  // Fiber publishes the stable final. The recorder marks that otherwise-unowned final Goal-
+  // eligible only after proving it belongs to the uncertain response. Use that durable proof
+  // to retire the red warning until the next authored question; a later arbitrary final is not
+  // enough to rewrite history.
+  if (!completed) {
+    for (const event of later) {
+      if (event.seq <= error.seq) continue;
+      if (event.kind === 'user_message') break;
+      if (event.kind === 'assistant_message' && event.final === true && event.goalEligible === true &&
+          (event.finalContentSeq ?? event.origin ?? event.seq) > error.seq) {
+        completed = true;
+        break;
+      }
+    }
+  }
+  if (completed) return { title: t('Recovered after interruption'), message,
+    next: t('This turn later completed. You can continue with a new message.'), resolved: true };
+  if (continued) return { title, message,
+    next: t('Work continued after this notice. Automatic continuation waits for work to settle; the failed page alone does not trigger another message.'), resolved: false };
   if (repair && error.blocking !== true) next = `${repair.message.text} ${thinking
     ? t('You can send a follow-up. After a confirmed refresh, automatic continuation waits five minutes and checks for new work before sending.')
     : t('Queued messages still wait until sending is safe. If the chat stays stuck, open ChatGPT and check the page before retrying.')}`;
-  return { title, message, next };
+  return { title, message, next, resolved: false };
 }
