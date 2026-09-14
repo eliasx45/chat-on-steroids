@@ -9,16 +9,18 @@ The desktop previously left every occurrence as a red active warning even after 
 independently proved the stable final belonged to the uncertain response.
 
 The renderer now uses that existing `goalEligible` final proof to present the affected error cards
-as recovered. The proof is bounded by the next authored user message; unrelated later answers do
-not rewrite an older failure. Recording and browser-repair authority are unchanged.
+as recovered. Canonical message snapshots are ordered by their preserved conversation `origin`,
+not their newer storage sequence. The proof is bounded by the next authored user message;
+unrelated later answers do not rewrite an older failure. Recording and browser-repair authority
+are unchanged.
 
 ## Evidence
 
 - Installed app: 2.1.11 on macOS.
 - Live signed-in ChatGPT conversation and its matching local session were inspected without
   publishing their identifiers or authored content.
-- The durable journal recorded recoverable errors at sequences 27, 31 and 36, browser repairs at
-  28/29 and 37/38, and the stable final at sequence 40 with `goalEligible: true`.
+- The durable journal recorded three recoverable errors and two browser repairs. The stable final's
+  canonical snapshot preserved its original conversation position and `goalEligible: true` proof.
 - Live ChatGPT showed the final plan and later tool work; the old provider error banner was gone.
 
 ## Validation
@@ -32,4 +34,6 @@ not rewrite an older failure. Recording and browser-repair authority are unchang
   `npm test -- --run test/code-mode-runtime.test.ts`, passed all 14 tests.
 - `npm run dist:dir:mac:arm64`; the resulting app passed strict deep `codesign` verification.
 
-Installed-package and live desktop verification are recorded in the delivery report after packaging.
+- Live desktop verification passed in the shared-data development app: both tunnels connected,
+  the browser companion authenticated, and the affected history rendered three recovered notices
+  with zero stale error notices in both light and dark themes.
